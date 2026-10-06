@@ -1,6 +1,6 @@
 # のカード
 
-<img width="345" height="131" alt="image" src="https://github.com/user-attachments/assets/3bdcc250-d52c-4c16-9ca4-e6f6421eafca" />
+<img width="417" height="136" alt="image" src="https://github.com/user-attachments/assets/ee56545e-fd8c-41d3-9c4e-038fc8056064" />
 
 Flashcards connected to your Notion Datasets.
 
