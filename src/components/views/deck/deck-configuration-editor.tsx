@@ -4,7 +4,13 @@ import { useRouter } from '@tanstack/react-router'
 import { DatasetCardFields } from '../dataset-configuration/dataset-card-customizer'
 import DatasetConnectionModeSelect from '../dataset-configuration/dataset-connection-mode-select'
 import DatasetConnectionColumnGroupingList from '../dataset-configuration/dataset-connection-column-grouping-list'
-import { datasetConnectionReducer } from '../dataset-configuration/dataset-connection-reducer'
+import DatasetActivitySettings from '../dataset-configuration/dataset-activity-settings'
+import {
+  createActivitySettings,
+  datasetConnectionReducer,
+  hasValidActivitySettings,
+  toActivityConfiguration,
+} from '../dataset-configuration/dataset-connection-reducer'
 import type { DatasetConnectionState } from '../dataset-configuration/dataset-connection-reducer'
 import { Button } from '#/components/ui/button'
 import {
@@ -35,6 +41,7 @@ export default function DeckConfigurationEditor({
       front: cardGroup.frontColumnIds,
       back: cardGroup.backColumnIds,
     },
+    activities: createActivitySettings(cardGroup),
   })
   const save = useMutation({
     ...notionMutations.updateCardGroup(),
@@ -55,6 +62,7 @@ export default function DeckConfigurationEditor({
                   groupingColumnId,
                   groupingColumnName,
                   groupKeys: groupingColumnId === null ? [] : group.groupKeys,
+                  ...toActivityConfiguration(configuration.activities),
                 }
               : group,
           ),
@@ -120,7 +128,11 @@ export default function DeckConfigurationEditor({
     (configuration.mode === 'single' ||
       groupingColumns.some(
         (column) => column.id === configuration.groupingColumnId,
-      ))
+      )) &&
+    hasValidActivitySettings(
+      configuration.activities,
+      new Set(columns.map((column) => column.id)),
+    )
   const dirty = configurationIsDirty(configuration, cardGroup)
   const canSave = valid && dirty && !save.isPending
   function submitConfiguration() {
@@ -134,6 +146,7 @@ export default function DeckConfigurationEditor({
             : null,
         frontColumnIds: configuration.bindings.front,
         backColumnIds: configuration.bindings.back,
+        ...toActivityConfiguration(configuration.activities),
       },
     })
   }
@@ -168,6 +181,16 @@ export default function DeckConfigurationEditor({
             dispatch({ type: 'card-field-removed', face, index })
           }
         />
+        <DatasetActivitySettings
+          columns={columns}
+          activities={configuration.activities}
+          onToggleActivity={(activity, enabled) =>
+            dispatch({ type: 'activity-toggled', activity, enabled })
+          }
+          onActivityColumnsChange={(activity, columnIds) =>
+            dispatch({ type: 'activity-columns-changed', activity, columnIds })
+          }
+        />
         {save.isError && (
           <p role="alert" className="text-xs text-destructive">
             {toPublicError(save.error).message}
@@ -187,11 +210,17 @@ function configurationIsDirty(
 ) {
   const groupingColumnId =
     configuration.mode === 'grouped' ? configuration.groupingColumnId : null
+  const activities = toActivityConfiguration(configuration.activities)
 
   return (
     groupingColumnId !== cardGroup.groupingColumnId ||
     !columnIdsEqual(configuration.bindings.front, cardGroup.frontColumnIds) ||
-    !columnIdsEqual(configuration.bindings.back, cardGroup.backColumnIds)
+    !columnIdsEqual(configuration.bindings.back, cardGroup.backColumnIds) ||
+    !columnIdsEqual(
+      activities.selectOptionColumnIds,
+      cardGroup.selectOptionColumnIds,
+    ) ||
+    activities.writeAnswerColumnId !== cardGroup.writeAnswerColumnId
   )
 }
 

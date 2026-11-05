@@ -1,24 +1,41 @@
 import { LayoutList } from 'lucide-react'
+import DatasetActivitySettings from './dataset-activity-settings'
 import DatasetConnectionColumnGroupingList from './dataset-connection-column-grouping-list'
 import DatasetConnectionModeSelect from './dataset-connection-mode-select'
 import type { DatasetConnectionMode } from './dataset-connection-mode-select'
-import type { ColumnId, DatasetColumn } from './dataset-connection-reducer'
+import type {
+  ActivitySettings,
+  ColumnId,
+  DatasetColumn,
+} from './dataset-connection-reducer'
 import SectionHeader from '#/components/ui/section-header'
+import type { StudyActivity } from '#/features/study/activities'
 
 type DatasetConnectionSetupProps = {
   columns: DatasetColumn[]
+  activityColumns: DatasetColumn[]
   mode: DatasetConnectionMode
   groupingColumnId: ColumnId | null
+  activities: ActivitySettings
   onModeChange: (mode: DatasetConnectionMode) => void
   onGroupingColumnChange: (columnId: ColumnId) => void
+  onToggleActivity: (activity: StudyActivity, enabled: boolean) => void
+  onActivityColumnsChange: (
+    activity: StudyActivity,
+    columnIds: ColumnId[],
+  ) => void
 }
 
 export default function DatasetConnectionSetup({
   columns,
+  activityColumns,
   mode,
   groupingColumnId,
+  activities,
   onModeChange,
   onGroupingColumnChange,
+  onToggleActivity,
+  onActivityColumnsChange,
 }: DatasetConnectionSetupProps) {
   return (
     <>
@@ -43,6 +60,13 @@ export default function DatasetConnectionSetup({
       ) : (
         <SingleListHint cardCount={24} />
       )}
+
+      <DatasetActivitySettings
+        columns={activityColumns}
+        activities={activities}
+        onToggleActivity={onToggleActivity}
+        onActivityColumnsChange={onActivityColumnsChange}
+      />
     </>
   )
 }

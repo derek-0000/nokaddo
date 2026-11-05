@@ -8,6 +8,8 @@ export type StudyDeckConfiguration = {
   groupingColumnId: string | null
   frontColumnIds: string[]
   backColumnIds: string[]
+  selectOptionColumnIds: string[]
+  writeAnswerColumnId: string | null
 }
 
 export type StudyCategorySelection = {
@@ -40,6 +42,12 @@ export function createStudyQuery(
     frontPropertyIds: configuration.frontColumnIds,
     backPropertyIds: configuration.backColumnIds,
     groupPropertyId,
+    // Omitted when disabled so existing decks keep their query fingerprint.
+    selectPropertyIds:
+      configuration.selectOptionColumnIds.length > 0
+        ? configuration.selectOptionColumnIds
+        : undefined,
+    writePropertyId: configuration.writeAnswerColumnId ?? undefined,
   }
 }
 

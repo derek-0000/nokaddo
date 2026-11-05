@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import {
   Outlet,
   RouterProvider,
@@ -229,6 +229,8 @@ describe('dataset connection steps and validation', () => {
         groupingColumnId: null,
         frontColumnIds: ['prompt-id'],
         backColumnIds: [],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
         nokaddoDatasetId: 'registry-existing',
       },
     })
@@ -293,7 +295,65 @@ describe('dataset connection steps and validation', () => {
         groupingColumnId: 'category-id',
         frontColumnIds: ['prompt-id'],
         backColumnIds: ['prompt-id'],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
         nokaddoDatasetId: null,
+      },
+    })
+  })
+
+  it('configures activities after grouping and submits their columns', async () => {
+    const { router, user } = await renderConnection()
+    const closeChooser = async (name: string) => {
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('heading', { name })).toBeNull(),
+      )
+    }
+
+    await user.click(
+      screen.getByRole('switch', { name: 'Select correct option' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Answer' }))
+    await user.click(screen.getByRole('button', { name: 'Prompt' }))
+    await closeChooser('Select correct option')
+
+    await user.click(screen.getByRole('switch', { name: 'Write it' }))
+    await closeChooser('Write it')
+
+    await user.click(screen.getByRole('tab', { name: 'Card customizer' }))
+    await user.click(screen.getByRole('button', { name: 'Add field' }))
+    await user.click(screen.getByRole('button', { name: 'Prompt' }))
+    await closeChooser('Choose fields')
+    await user.click(screen.getByRole('tab', { name: 'Preview' }))
+
+    // Write it is enabled without an answer column, so the deck is invalid.
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Finish' })
+        .disabled,
+    ).toBe(true)
+
+    await user.click(screen.getByRole('tab', { name: 'Connection' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Column with the expected answer: choose columns',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Answer' }))
+    await closeChooser('Write it')
+
+    await user.click(screen.getByRole('tab', { name: 'Preview' }))
+    const activities = screen.getByRole('list', { name: 'Activities' })
+    expect(within(activities).getByText('Select correct option')).toBeTruthy()
+    expect(within(activities).getByText('Write it')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Finish' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app'))
+    expect(boundaries.completeConnection.mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        frontColumnIds: ['prompt-id'],
+        selectOptionColumnIds: ['answer-id', 'prompt-id'],
+        writeAnswerColumnId: 'answer-id',
       },
     })
   })

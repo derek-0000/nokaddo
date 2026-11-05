@@ -1,6 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { QueryDataSourceParameters } from '@notionhq/client'
-import { queryStudyWindow, updateStudyProgress } from './study-server'
+import {
+  queryStudyWindow,
+  updateActivityResult,
+  updateStudyProgress,
+} from './study-server'
 import { NOTION_WINDOW_SIZE } from '#/features/study/types'
 import type { StudyQuery, StudySort } from '#/features/study/types'
 import { AppError } from '#/lib/errors'
@@ -40,6 +44,19 @@ function validateStudyQuery(query: unknown): StudyQuery {
   ) {
     throw new AppError('validation')
   }
+  if (
+    query.selectPropertyIds !== undefined &&
+    (!isPropertyIdList(query.selectPropertyIds) ||
+      query.selectPropertyIds.length === 0)
+  ) {
+    throw new AppError('validation')
+  }
+  if (
+    query.writePropertyId !== undefined &&
+    !isNonEmptyString(query.writePropertyId)
+  ) {
+    throw new AppError('validation')
+  }
   if (!Array.isArray(query.sorts) || !query.sorts.every(isStudySort)) {
     throw new AppError('validation')
   }
@@ -57,6 +74,8 @@ function validateStudyQuery(query: unknown): StudyQuery {
     frontPropertyIds: query.frontPropertyIds,
     backPropertyIds: query.backPropertyIds,
     groupPropertyId: query.groupPropertyId,
+    selectPropertyIds: query.selectPropertyIds,
+    writePropertyId: query.writePropertyId,
   }
 }
 
@@ -121,3 +140,23 @@ export const saveStudyProgress = createServerFn({ method: 'POST' })
     return { pageId: data.pageId, action: data.action }
   })
   .handler(({ data }) => updateStudyProgress(data))
+
+export type ActivityResultInput = Parameters<typeof updateActivityResult>[0]
+
+export const saveActivityResult = createServerFn({ method: 'POST' })
+  .validator((data: unknown): ActivityResultInput => {
+    if (
+      !isRecord(data) ||
+      !isNonEmptyString(data.pageId) ||
+      (data.activity !== 'select' && data.activity !== 'write') ||
+      typeof data.correct !== 'boolean'
+    ) {
+      throw new AppError('validation')
+    }
+    return {
+      pageId: data.pageId,
+      activity: data.activity,
+      correct: data.correct,
+    }
+  })
+  .handler(({ data }) => updateActivityResult(data))

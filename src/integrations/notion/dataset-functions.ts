@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
   createNokaddoDataset,
+  ensureActivityConfigurationProperties,
   ensureNokaddoReviewProperties,
   getStoredCardConfigurations,
   insertCardConfiguration,
@@ -77,8 +78,12 @@ export const completeDatasetConnection = createServerFn({ method: 'POST' })
         }
       }
 
-      const nokaddoDatasetId =
-        data.nokaddoDatasetId ?? (await createNokaddoDataset(notion))
+      let nokaddoDatasetId = data.nokaddoDatasetId
+      if (nokaddoDatasetId) {
+        await ensureActivityConfigurationProperties(notion, nokaddoDatasetId)
+      } else {
+        nokaddoDatasetId = await createNokaddoDataset(notion)
+      }
 
       await ensureNokaddoReviewProperties(notion, data.dataSetId)
 
@@ -126,7 +131,12 @@ function enforceOneActiveDeckGuard(
     active.length === 1 &&
     active[0].groupingColumnId === requested.groupingColumnId &&
     sameOrderedValues(active[0].frontColumnIds, requested.frontColumnIds) &&
-    sameOrderedValues(active[0].backColumnIds, requested.backColumnIds)
+    sameOrderedValues(active[0].backColumnIds, requested.backColumnIds) &&
+    sameOrderedValues(
+      active[0].selectOptionColumnIds,
+      requested.selectOptionColumnIds,
+    ) &&
+    active[0].writeAnswerColumnId === requested.writeAnswerColumnId
   ) {
     return active[0].id
   }

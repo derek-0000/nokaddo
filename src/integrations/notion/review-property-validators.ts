@@ -9,6 +9,8 @@ export const NOKADDO_REVIEW_PROPERTIES = {
   completed: 'nkdo-completed',
   lastVisitedAt: 'nkdo-last-visited-at',
   completedAt: 'nkdo-completed-at',
+  selectCorrect: 'nkdo-select-correct',
+  writeCorrect: 'nkdo-write-correct',
 } as const
 
 export const NOKADDO_REVIEW_PROPERTY_TYPES = {
@@ -16,6 +18,13 @@ export const NOKADDO_REVIEW_PROPERTY_TYPES = {
   [NOKADDO_REVIEW_PROPERTIES.completed]: 'checkbox',
   [NOKADDO_REVIEW_PROPERTIES.lastVisitedAt]: 'date',
   [NOKADDO_REVIEW_PROPERTIES.completedAt]: 'date',
+  [NOKADDO_REVIEW_PROPERTIES.selectCorrect]: 'checkbox',
+  [NOKADDO_REVIEW_PROPERTIES.writeCorrect]: 'checkbox',
+} as const
+
+export const ACTIVITY_RESULT_PROPERTIES = {
+  select: NOKADDO_REVIEW_PROPERTIES.selectCorrect,
+  write: NOKADDO_REVIEW_PROPERTIES.writeCorrect,
 } as const
 
 const NOKADDO_REVIEW_PROPERTY_NAMES = new Set<string>(

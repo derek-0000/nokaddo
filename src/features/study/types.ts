@@ -10,6 +10,8 @@ export type CompactCard = {
   front: string[]
   back: string[]
   groupKey?: string | null
+  select?: { values: string[]; correct: boolean }
+  write?: { value: string; correct: boolean }
 }
 
 export type StudySort =
@@ -30,6 +32,8 @@ export type StudyQuery = {
   frontPropertyIds: string[]
   backPropertyIds: string[]
   groupPropertyId?: string
+  selectPropertyIds?: string[]
+  writePropertyId?: string
 }
 
 export type CardWindow = {

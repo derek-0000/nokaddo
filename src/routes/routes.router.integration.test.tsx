@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { QueryClient } from '@tanstack/react-query'
 import { isRedirect } from '@tanstack/react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,6 +33,7 @@ const boundaries = vi.hoisted(() => ({
   studyData: vi.fn(),
   studyWindow: vi.fn(),
   saveProgress: vi.fn(),
+  saveActivityResult: vi.fn(),
   viewer: vi.fn(),
   failStudyPositionWrites: false,
 }))
@@ -80,6 +81,7 @@ vi.mock('#/integrations/notion/dataset-functions', () => ({
 
 vi.mock('#/integrations/notion/study-functions', () => ({
   saveStudyProgress: boundaries.saveProgress,
+  saveActivityResult: boundaries.saveActivityResult,
 }))
 
 vi.mock('#/integrations/notion/study-source', () => ({
@@ -166,6 +168,8 @@ const cardGroups = [
     groupKeys: ['Grammar', 'Vocabulary'],
     frontColumnIds: ['front'],
     backColumnIds: ['back'],
+    selectOptionColumnIds: [],
+    writeAnswerColumnId: null,
   },
 ]
 
@@ -282,6 +286,7 @@ beforeEach(() => {
     pageId: data.pageId,
     completed: data.action === 'learn',
   }))
+  boundaries.saveActivityResult.mockImplementation(async ({ data }) => data)
   boundaries.studyWindow.mockResolvedValue({
     cards: [
       {
@@ -566,6 +571,98 @@ describe('app, connect, deck, and study routes', () => {
     expect(boundaries.completeConnection).not.toHaveBeenCalled()
   })
 
+  it('walks faces, then activities that must be answered correctly, before the next card', async () => {
+    const studyData = createStudyData([], 'Languages', [], '')
+    boundaries.studyData.mockResolvedValue({
+      ...studyData,
+      deckConfig: {
+        ...studyData.deckConfig,
+        nkdo_select: richTextProperty('rich_text', '["reading"]'),
+        nkdo_answer: richTextProperty('rich_text', 'reading'),
+      },
+    })
+    boundaries.studyWindow.mockResolvedValue({
+      cards: [0, 1, 2, 3, 4].map((index) => ({
+        id: `card-${index}`,
+        visited: false,
+        completed: false,
+        front: [`Kanji ${index}`],
+        back: [`Meaning ${index}`],
+        select: { values: [`Reading ${index}`], correct: false },
+        write: { value: `Reading ${index}`, correct: false },
+      })),
+      nextCursor: null,
+    })
+    const { user } = await loadAndRender('/app/deck-a/study')
+    expect(await screen.findByText('Kanji 0')).toBeTruthy()
+    expect(boundaries.studyWindow.mock.calls[0]?.[0]).toMatchObject({
+      selectPropertyIds: ['reading'],
+      writePropertyId: 'reading',
+    })
+    const next = () => screen.getByRole('button', { name: 'Next' })
+
+    await user.click(next())
+    const surface = screen.getByRole('group', { name: 'Flashcard front' })
+    fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
+    fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
+    expect(screen.getByText('Meaning 0')).toBeTruthy()
+    await user.click(next())
+
+    // The card keeps the same prompt while the activity is answered.
+    const selectCard = screen.getByRole('group', {
+      name: 'Flashcard select correct option',
+    })
+    expect(within(selectCard).getByText('Meaning 0')).toBeTruthy()
+    expect(within(selectCard).queryByText('Kanji 0')).toBeNull()
+    const options = screen.getByRole('group', { name: 'Options' })
+    expect(within(options).getAllByRole('button')).toHaveLength(4)
+    expect(next().hasAttribute('disabled')).toBe(true)
+
+    await user.click(within(options).getByRole('button', { name: 'Reading 1' }))
+    expect(
+      within(options).getByRole('button', { name: 'Reading 1, wrong' }),
+    ).toHaveProperty('disabled', true)
+    expect(next().hasAttribute('disabled')).toBe(true)
+    await user.click(within(options).getByRole('button', { name: 'Reading 0' }))
+    expect(
+      within(options).getByRole('button', { name: 'Reading 0, correct' }),
+    ).toBeTruthy()
+    expect(within(selectCard).getByText('Meaning 0')).toBeTruthy()
+    expect(within(selectCard).queryByText('Kanji 0')).toBeNull()
+    expect(screen.queryByText('Correct')).toBeNull()
+    expect(next().hasAttribute('disabled')).toBe(false)
+    await waitFor(() =>
+      expect(boundaries.saveActivityResult).toHaveBeenCalledExactlyOnceWith({
+        data: { pageId: 'card-0', activity: 'select', correct: false },
+      }),
+    )
+
+    await user.click(next())
+    expect(
+      screen.getByRole('group', { name: 'Flashcard write it' }),
+    ).toBeTruthy()
+    const input = screen.getByRole('textbox', { name: 'Write the answer' })
+    expect(document.activeElement).toBe(input)
+    expect(next().hasAttribute('disabled')).toBe(true)
+    await user.type(input, 'reading 9{Enter}')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(next().hasAttribute('disabled')).toBe(true)
+    await user.clear(input)
+    expect(input.getAttribute('aria-invalid')).toBe('false')
+    await user.type(input, '  READING 0 ')
+    expect(input.getAttribute('data-state')).toBe('correct')
+    expect(next().hasAttribute('disabled')).toBe(false)
+    await waitFor(() =>
+      expect(boundaries.saveActivityResult).toHaveBeenLastCalledWith({
+        data: { pageId: 'card-0', activity: 'write', correct: false },
+      }),
+    )
+    expect(boundaries.saveActivityResult).toHaveBeenCalledTimes(2)
+
+    await user.click(next())
+    expect(await screen.findByText('Kanji 1')).toBeTruthy()
+  })
+
   it('records visits, retries learning, and updates progress when learning and unlearning', async () => {
     boundaries.studyData.mockResolvedValue(
       createStudyData([], 'Languages', [], ''),
@@ -702,9 +799,9 @@ describe('app, connect, deck, and study routes', () => {
     )
     expect(screen.getByText('current')).toBeTruthy()
     expect(
-      screen.getByRole('button', { name: 'Flip' }).hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled'),
     ).toBe(false)
-    await user.click(screen.getByRole('button', { name: 'Flip' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent(
       screen.getByRole('group', { name: 'Flashcard front' }),
       new Event('webkitAnimationEnd', { bubbles: true }),
@@ -732,7 +829,7 @@ describe('app, connect, deck, and study routes', () => {
       ),
     )
     lastRequest.resolve(last)
-    await user.click(screen.getByRole('button', { name: 'Flip' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent(
       screen.getByRole('group', { name: 'Flashcard front' }),
       new Event('webkitAnimationEnd', { bubbles: true }),
@@ -804,7 +901,7 @@ describe('app, connect, deck, and study routes', () => {
       expect(toggle).toHaveProperty('checked', false)
       boundaries.saveProgress.mockClear()
       if (!initiallyLearned) {
-        await user.click(screen.getByRole('button', { name: 'Flip' }))
+        await user.click(screen.getByRole('button', { name: 'Next' }))
         const surface = screen.getByRole('group', { name: 'Flashcard front' })
         fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
         fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
@@ -894,7 +991,7 @@ describe('app, connect, deck, and study routes', () => {
       expect(preparing.hasAttribute('disabled')).toBe(true)
       expect(screen.getByText('Current card')).toBeTruthy()
       expect(
-        screen.getByRole('button', { name: 'Flip' }).hasAttribute('disabled'),
+        screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled'),
       ).toBe(false)
       middleRequest.resolve(middlePage)
       await waitFor(() =>
@@ -1422,7 +1519,7 @@ describe('app, connect, deck, and study routes', () => {
       screen.getByRole('button', { name: 'Previous' }).hasAttribute('disabled'),
     ).toBe(false)
     expect(
-      screen.getByRole('button', { name: 'Flip' }).hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled'),
     ).toBe(false)
     await user.click(screen.getByRole('button', { name: 'Previous' }))
     expect(await screen.findByText('Study prompt 15')).toBeTruthy()
@@ -1434,7 +1531,10 @@ describe('app, connect, deck, and study routes', () => {
     }
     expect(await screen.findByText('Next batch prompt')).toBeTruthy()
     const lastCard = screen.getByRole('group', { name: 'Flashcard front' })
+    // Tapping the card does nothing; only Next turns it.
     await user.click(lastCard)
+    expect(lastCard.getAttribute('aria-label')).toBe('Flashcard front')
+    await user.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent(lastCard, new Event('webkitAnimationEnd', { bubbles: true }))
     fireEvent(lastCard, new Event('webkitAnimationEnd', { bubbles: true }))
     expect(screen.getByRole('button', { name: 'Back to start' })).toBeTruthy()
@@ -1453,6 +1553,11 @@ describe('app, connect, deck, and study routes', () => {
       ).toMatchObject({ pageIndex: 1, cardIndex: 0 }),
     )
     boundaries.failStudyPositionWrites = true
+    // Previous first steps back to the front, then to the previous card.
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    fireEvent(lastCard, new Event('webkitAnimationEnd', { bubbles: true }))
+    fireEvent(lastCard, new Event('webkitAnimationEnd', { bubbles: true }))
+    expect(screen.getByRole('group', { name: 'Flashcard front' })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Previous' }))
     expect(await screen.findByText('Study prompt 20')).toBeTruthy()
     expect(
@@ -1491,13 +1596,13 @@ describe('app, connect, deck, and study routes', () => {
     await user.click(screen.getByRole('button', { name: 'Previous' }))
     expect(await screen.findByText('Study prompt 20')).toBeTruthy()
     await advanceStudyCard(user)
-    await user.click(screen.getByRole('button', { name: 'Flip' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
     const lastSurface = screen.getByRole('group', { name: 'Flashcard front' })
     fireEvent(lastSurface, new Event('webkitAnimationEnd', { bubbles: true }))
     fireEvent(lastSurface, new Event('webkitAnimationEnd', { bubbles: true }))
     await user.click(screen.getByRole('button', { name: 'Back to start' }))
     expect(await screen.findByText('Study prompt 1')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Flip' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
   }, 20_000)
 
   it.each(['/app/deck-a/study', '/app/deck-a/study?group=Unknown'])(
@@ -1837,14 +1942,14 @@ describe('server route handlers', () => {
 async function advanceStudyCard(
   user: Awaited<ReturnType<typeof loadAndRender>>['user'],
 ) {
-  await user.click(screen.getByRole('button', { name: 'Flip' }))
+  await user.click(screen.getByRole('button', { name: 'Next' }))
   const surface = screen.getByRole('group', { name: 'Flashcard front' })
   fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
   fireEvent(surface, new Event('webkitAnimationEnd', { bubbles: true }))
   await user.click(screen.getByRole('button', { name: 'Next' }))
   await waitFor(() =>
     expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Flip' }),
+      screen.getByRole('button', { name: 'Next' }),
     ),
   )
 }

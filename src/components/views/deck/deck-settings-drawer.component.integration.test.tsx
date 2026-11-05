@@ -303,6 +303,8 @@ it('edits saved bindings in separate sections and retains edits after a failed s
       groupingColumnId: null,
       frontColumnIds: ['front'],
       backColumnIds: ['back'],
+      selectOptionColumnIds: [],
+      writeAnswerColumnId: null,
     },
   })
   expect(within(back).getByRole('button', { name: 'Back field' })).toBeTruthy()
@@ -557,6 +559,8 @@ function deck(id: string, dataSetId: string) {
     groupKeys: [],
     frontColumnIds: ['front'],
     backColumnIds: [],
+    selectOptionColumnIds: [],
+    writeAnswerColumnId: null,
   }
 }
 

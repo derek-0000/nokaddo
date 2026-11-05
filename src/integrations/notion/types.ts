@@ -33,6 +33,8 @@ export type CardConfigurationInput = {
   groupingColumnId: string | null
   frontColumnIds: string[]
   backColumnIds: string[]
+  selectOptionColumnIds: string[]
+  writeAnswerColumnId: string | null
 }
 
 export const CATEGORY_PROPERTY_TYPES = [

@@ -15,6 +15,10 @@ const stateWithBindings = (): DatasetConnectionState => ({
     front: ['front-a', 'front-b', 'front-c'],
     back: ['back-a', 'back-b', 'back-c'],
   },
+  activities: {
+    select: { enabled: false, columnIds: [] },
+    write: { enabled: false, columnIds: [] },
+  },
 })
 
 describe('dataset connection initial state', () => {
@@ -30,6 +34,10 @@ describe('dataset connection initial state', () => {
       bindings: {
         front: [],
         back: [],
+      },
+      activities: {
+        select: { enabled: false, columnIds: [] },
+        write: { enabled: false, columnIds: [] },
       },
     })
   })

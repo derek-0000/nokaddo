@@ -14,6 +14,8 @@ const studyConfiguration = {
   groupingColumnId: 'category-id',
   frontColumnIds: ['front-id'],
   backColumnIds: ['back-id'],
+  selectOptionColumnIds: [],
+  writeAnswerColumnId: null,
 }
 
 describe('study query categories', () => {

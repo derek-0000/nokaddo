@@ -3,12 +3,15 @@ import type { ReactNode } from 'react'
 import { Layers, LayoutList } from 'lucide-react'
 import DatasetFlashcard from './dataset-flashcard'
 import type {
+  ActivitySettings,
   CardBindings,
   ColumnId,
   DatasetColumn,
 } from './dataset-connection-reducer'
 import type { DatasetConnectionMode } from './dataset-connection-mode-select'
+import { STUDY_ACTIVITY_DETAILS } from '../study/study-activity-details'
 import SectionHeader from '#/components/ui/section-header'
+import { STUDY_ACTIVITIES } from '#/features/study/activities'
 import { notionQueries } from '#/integrations/notion/api'
 import { normalizeNotionPropertyId } from '#/integrations/notion/helpers'
 
@@ -18,6 +21,7 @@ type DatasetConnectionPreviewProps = {
   mode: DatasetConnectionMode
   groupingColumnId: ColumnId | null
   bindings: CardBindings
+  activities: ActivitySettings
 }
 
 export default function DatasetConnectionPreview({
@@ -26,6 +30,7 @@ export default function DatasetConnectionPreview({
   mode,
   groupingColumnId,
   bindings,
+  activities,
 }: DatasetConnectionPreviewProps) {
   const columnNames = new Map(columns.map((column) => [column.id, column.name]))
   const configuredFields = [...bindings.front, ...bindings.back]
@@ -48,7 +53,10 @@ export default function DatasetConnectionPreview({
         description="Confirm your setup before finishing"
       />
 
-      <ConfigSummary mode={mode} groupingColumn={groupingColumn} />
+      <div className="flex shrink-0 flex-col gap-2">
+        <ConfigSummary mode={mode} groupingColumn={groupingColumn} />
+        <ActivitySummary activities={activities} columnNames={columnNames} />
+      </div>
 
       <DatasetFlashcard surfaceClassName="overflow-hidden">
         {(face) => {
@@ -122,6 +130,46 @@ function ConfigSummary({
       </div>
       <p className="min-w-0 truncate text-xs font-semibold">{label}</p>
     </div>
+  )
+}
+
+function ActivitySummary({
+  activities,
+  columnNames,
+}: {
+  activities: ActivitySettings
+  columnNames: Map<ColumnId, string>
+}) {
+  const enabled = STUDY_ACTIVITIES.filter(
+    (activity) => activities[activity].enabled,
+  )
+
+  if (enabled.length === 0) return null
+
+  return (
+    <ul aria-label="Activities" className="flex shrink-0 flex-col gap-2">
+      {enabled.map((activity) => {
+        const { label, icon: Icon } = STUDY_ACTIVITY_DETAILS[activity]
+        const columns = activities[activity].columnIds
+          .map((id) => columnNames.get(id) ?? id)
+          .join(', ')
+
+        return (
+          <li
+            key={activity}
+            className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5"
+          >
+            <div className="grid size-7 shrink-0 place-items-center rounded-md border border-border">
+              <Icon className="size-3.5" />
+            </div>
+            <p className="min-w-0 truncate text-xs">
+              <span className="font-semibold">{label}</span>
+              <span className="text-muted-foreground"> · {columns}</span>
+            </p>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

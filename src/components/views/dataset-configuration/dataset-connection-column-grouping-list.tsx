@@ -67,7 +67,7 @@ export default function DatasetConnectionColumnGroupingList({
     <section
       className={cn(
         'flex min-h-0 flex-col gap-3',
-        layout === 'fill' && 'flex-1 overflow-hidden',
+        layout === 'fill' && 'overflow-hidden',
       )}
     >
       <SectionHeader

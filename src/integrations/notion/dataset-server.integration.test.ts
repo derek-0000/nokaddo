@@ -194,6 +194,8 @@ describe('dataset connection production stack', () => {
           groupingColumnId: 'category-id',
           frontColumnIds: ['title-id'],
           backColumnIds: ['category-id'],
+          selectOptionColumnIds: [],
+          writeAnswerColumnId: null,
           nokaddoDatasetId: null,
         },
       }),
@@ -213,6 +215,8 @@ describe('dataset connection production stack', () => {
         'nkdo-completed': { checkbox: {} },
         'nkdo-last-visited-at': { date: {} },
         'nkdo-completed-at': { date: {} },
+        'nkdo-select-correct': { checkbox: {} },
+        'nkdo-write-correct': { checkbox: {} },
       },
     })
     expect(notionBoundary.query).toHaveBeenCalledWith({
@@ -305,6 +309,8 @@ describe('review-property setup', () => {
         'nkdo-completed': { checkbox: {} },
         'nkdo-last-visited-at': { date: {} },
         'nkdo-completed-at': { date: {} },
+        'nkdo-select-correct': { checkbox: {} },
+        'nkdo-write-correct': { checkbox: {} },
       },
     })
 
@@ -417,6 +423,8 @@ describe('configuration insertion', () => {
           groupingColumnId: 'category-id',
           frontColumnIds: ['front-id'],
           backColumnIds: ['back-id'],
+          selectOptionColumnIds: [],
+          writeAnswerColumnId: null,
         },
         [longGroup],
       ),
@@ -447,6 +455,8 @@ describe('configuration insertion', () => {
         },
         front: { rich_text: [text('["front-id"]')] },
         back: { rich_text: [text('["back-id"]')] },
+        nkdo_select: { rich_text: [] },
+        nkdo_answer: { rich_text: [] },
       },
     })
   })
@@ -493,6 +503,8 @@ describe('configuration insertion', () => {
           groupingColumnId: null,
           frontColumnIds: ['front-id'],
           backColumnIds: [],
+          selectOptionColumnIds: [],
+          writeAnswerColumnId: null,
         },
         [],
       )
@@ -551,6 +563,8 @@ function finalStorageSchema() {
     group_keys: { rich_text: {} },
     front: { rich_text: {} },
     back: { rich_text: {} },
+    nkdo_select: { rich_text: {} },
+    nkdo_answer: { rich_text: {} },
   }
 }
 
@@ -560,6 +574,8 @@ function finalReviewProperties() {
     'nkdo-completed': dataSourceProperty('checkbox', 'completed-id'),
     'nkdo-last-visited-at': dataSourceProperty('date', 'last-visited-id'),
     'nkdo-completed-at': dataSourceProperty('date', 'completed-at-id'),
+    'nkdo-select-correct': dataSourceProperty('checkbox', 'select-correct-id'),
+    'nkdo-write-correct': dataSourceProperty('checkbox', 'write-correct-id'),
   }
 }
 

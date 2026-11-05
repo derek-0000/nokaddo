@@ -34,6 +34,10 @@ function renderPreview(bindings: CardBindings = frontBindings) {
       mode="grouped"
       groupingColumnId="fallback-id"
       bindings={bindings}
+      activities={{
+        select: { enabled: false, columnIds: [] },
+        write: { enabled: false, columnIds: [] },
+      }}
     />,
   )
 }

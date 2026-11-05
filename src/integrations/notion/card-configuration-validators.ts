@@ -10,6 +10,17 @@ export const NOKADDO_DATASET_PROPERTIES = {
   groupKeys: 'group_keys',
   front: 'front',
   back: 'back',
+  selectOptions: 'nkdo_select',
+  writeAnswer: 'nkdo_answer',
+} as const
+
+/**
+ * Activity properties were added after the first App Datasets were created.
+ * They are optional when reading and are added to the schema before writing.
+ */
+export const ACTIVITY_CONFIGURATION_PROPERTY_TYPES = {
+  [NOKADDO_DATASET_PROPERTIES.selectOptions]: 'rich_text',
+  [NOKADDO_DATASET_PROPERTIES.writeAnswer]: 'rich_text',
 } as const
 
 const CARD_CONFIGURATION_PROPERTY_TYPES = {
@@ -96,7 +107,44 @@ export function toStoredCardConfigurationFromProperties(
     groupKeys: getCardGroupKeys(properties),
     frontColumnIds,
     backColumnIds,
+    ...getActivityConfiguration(properties),
   }
+}
+
+export function getActivityConfiguration(
+  properties: PageObjectResponse['properties'],
+) {
+  const selectOptions = getOptionalRichText(
+    properties,
+    NOKADDO_DATASET_PROPERTIES.selectOptions,
+  )
+  const writeAnswer = getOptionalRichText(
+    properties,
+    NOKADDO_DATASET_PROPERTIES.writeAnswer,
+  )
+
+  return {
+    selectOptionColumnIds: selectOptions
+      ? (parseStringArray(selectOptions) ?? [])
+      : [],
+    writeAnswerColumnId: writeAnswer || null,
+  }
+}
+
+export function getMissingActivityConfigurationProperties(
+  properties: Record<string, { type: string }>,
+) {
+  return Object.keys(ACTIVITY_CONFIGURATION_PROPERTY_TYPES).filter(
+    (propertyName) => !getNotionProperty(properties, propertyName),
+  )
+}
+
+function getOptionalRichText(
+  properties: PageObjectResponse['properties'],
+  propertyName: string,
+) {
+  const property = getNotionProperty(properties, propertyName)
+  return property?.type === 'rich_text' ? getRichText(property.rich_text) : ''
 }
 
 export function getCardGroupKeys(properties: CardGroupConfigProperties) {
@@ -151,6 +199,21 @@ function getCardGroupConfigPropertyIssue(
     }
 
     if (property.type !== expectedType) {
+      return {
+        kind: 'wrong_type',
+        propertyName,
+        expectedType,
+        receivedType: property.type,
+      }
+    }
+  }
+
+  for (const [propertyName, expectedType] of Object.entries(
+    ACTIVITY_CONFIGURATION_PROPERTY_TYPES,
+  )) {
+    const property = getNotionProperty(properties, propertyName)
+
+    if (property && property.type !== expectedType) {
       return {
         kind: 'wrong_type',
         propertyName,
