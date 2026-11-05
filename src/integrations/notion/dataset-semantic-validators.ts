@@ -14,6 +14,8 @@ export function validateCardConfigurationAgainstDataset(
     CardConfigurationInput,
     | 'frontColumnIds'
     | 'backColumnIds'
+    | 'selectOptionColumnIds'
+    | 'writeAnswerColumnId'
     | 'groupingColumnName'
     | 'groupingColumnId'
   >,
@@ -30,6 +32,10 @@ export function validateCardConfigurationAgainstDataset(
   const referencedIds = [
     ...configuration.frontColumnIds,
     ...configuration.backColumnIds,
+    ...configuration.selectOptionColumnIds,
+    ...(configuration.writeAnswerColumnId
+      ? [configuration.writeAnswerColumnId]
+      : []),
   ]
   const groupingProperty =
     configuration.groupingColumnName === null

@@ -16,6 +16,8 @@ const configuration: CardConfigurationInput = {
   groupingColumnId: 'category-id',
   frontColumnIds: ['title id'],
   backColumnIds: ['answer-id'],
+  selectOptionColumnIds: [],
+  writeAnswerColumnId: null,
 }
 
 const properties = {

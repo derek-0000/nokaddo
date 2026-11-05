@@ -74,6 +74,7 @@ it('uses POST for study loading because live group reconciliation may write, and
     'POST',
     'GET',
     'POST',
+    'POST',
   ])
 })
 
@@ -108,6 +109,8 @@ describe('card-group retrieval', () => {
         groupKeys: ['Biology'],
         frontColumnIds: ['front-id'],
         backColumnIds: ['back-id'],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
       })),
     )
     expect(notionBoundary.dataSourcesQuery).toHaveBeenNthCalledWith(1, {
@@ -172,6 +175,8 @@ describe('editing a card group', () => {
         groupingColumnId: null,
         frontColumnIds: ['new-id'],
         backColumnIds: [],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
       },
     })
     expect(notionBoundary.pagesUpdate).toHaveBeenCalledExactlyOnceWith({
@@ -184,6 +189,8 @@ describe('editing a card group', () => {
           rich_text: [{ type: 'text', text: { content: '["new-id"]' } }],
         },
         back: { rich_text: [{ type: 'text', text: { content: '[]' } }] },
+        nkdo_select: { rich_text: [] },
+        nkdo_answer: { rich_text: [] },
       },
     })
   })
@@ -213,6 +220,8 @@ describe('editing a card group', () => {
         groupingColumnId: 'new-id',
         frontColumnIds: ['new-id'],
         backColumnIds: [],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
       },
     })
     expect(notionBoundary.pagesUpdate).toHaveBeenCalledWith(
@@ -257,6 +266,8 @@ describe('editing a card group', () => {
         groupingColumnId: 'category-id',
         frontColumnIds: ['new-id'],
         backColumnIds: [],
+        selectOptionColumnIds: [],
+        writeAnswerColumnId: null,
       },
     })
     expect(notionBoundary.dataSourcesQuery).not.toHaveBeenCalled()
@@ -276,6 +287,8 @@ describe('editing a card group', () => {
           rich_text: [{ type: 'text', text: { content: '["new-id"]' } }],
         },
         back: { rich_text: [{ type: 'text', text: { content: '[]' } }] },
+        nkdo_select: { rich_text: [] },
+        nkdo_answer: { rich_text: [] },
       },
     })
   })
@@ -289,10 +302,74 @@ describe('editing a card group', () => {
           groupingColumnId: null,
           frontColumnIds: ['missing'],
           backColumnIds: [],
+          selectOptionColumnIds: [],
+          writeAnswerColumnId: null,
         },
       }),
     ).rejects.toThrow()
     expect(notionBoundary.pagesUpdate).not.toHaveBeenCalled()
+  })
+  it('adds activity columns to legacy decks before saving enabled activities', async () => {
+    const {
+      nkdo_select: _select,
+      nkdo_answer: _answer,
+      ...legacyProperties
+    } = configurationProperties()
+    notionBoundary.pagesRetrieve.mockResolvedValue({
+      ...configurationPage('deck-1', legacyProperties),
+      parent: { type: 'data_source_id', data_source_id: 'app-dataset-id' },
+    } as never)
+    notionBoundary.dataSourcesRetrieve.mockImplementation(
+      async ({ data_source_id }) =>
+        data_source_id === 'app-dataset-id'
+          ? sourceDataset({})
+          : sourceDataset({
+              Reading: schemaProperty('rich_text', 'reading-id'),
+              Meaning: schemaProperty('rich_text', 'meaning-id'),
+            }),
+    )
+
+    await updateCardGroup({
+      data: {
+        dataGroupId: 'deck-1',
+        groupingColumnId: null,
+        frontColumnIds: ['reading-id'],
+        backColumnIds: [],
+        selectOptionColumnIds: ['meaning-id', 'reading-id'],
+        writeAnswerColumnId: 'reading-id',
+      },
+    })
+
+    expect(notionBoundary.dataSourcesUpdate).toHaveBeenCalledWith({
+      data_source_id: 'app-dataset-id',
+      properties: {
+        nkdo_select: { rich_text: {} },
+        nkdo_answer: { rich_text: {} },
+      },
+    })
+    expect(notionBoundary.dataSourcesUpdate).toHaveBeenCalledWith({
+      data_source_id: 'source-id',
+      properties: expect.objectContaining({
+        'nkdo-select-correct': { checkbox: {} },
+        'nkdo-write-correct': { checkbox: {} },
+      }),
+    })
+    expect(notionBoundary.pagesUpdate).toHaveBeenCalledWith({
+      page_id: 'deck-1',
+      properties: expect.objectContaining({
+        nkdo_select: {
+          rich_text: [
+            {
+              type: 'text',
+              text: { content: '["meaning-id","reading-id"]' },
+            },
+          ],
+        },
+        nkdo_answer: {
+          rich_text: [{ type: 'text', text: { content: 'reading-id' } }],
+        },
+      }),
+    })
   })
 })
 
@@ -1047,6 +1124,8 @@ function configurationProperties(
     ),
     front: pageProperty('rich_text', richText('["front-id"]'), 'front-id'),
     back: pageProperty('rich_text', richText('["back-id"]'), 'back-id'),
+    nkdo_select: pageProperty('rich_text', [], 'select-options-id'),
+    nkdo_answer: pageProperty('rich_text', [], 'write-answer-id'),
   }
 }
 

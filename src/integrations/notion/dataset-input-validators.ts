@@ -76,6 +76,7 @@ export function validateCompleteDatasetConnectionInput(
       (getOwn(record, 'groupingColumnId') === null) ||
     !isColumnIdList(getOwn(record, 'frontColumnIds'), 1, 4) ||
     !isColumnIdList(getOwn(record, 'backColumnIds'), 0, 4) ||
+    !isActivityConfiguration(record) ||
     !isNullableNonEmptyString(getOwn(record, 'nokaddoDatasetId'))
   ) {
     throwValidation()
@@ -90,14 +91,32 @@ export function validateUpdateCardGroupInput(data: unknown) {
   const groupingColumnId = getOwn(record, 'groupingColumnId')
   const frontColumnIds = getOwn(record, 'frontColumnIds')
   const backColumnIds = getOwn(record, 'backColumnIds')
+  const selectOptionColumnIds = getOwn(record, 'selectOptionColumnIds')
+  const writeAnswerColumnId = getOwn(record, 'writeAnswerColumnId')
   if (
     !isNonEmptyString(dataGroupId) ||
     !isNullableNonEmptyString(groupingColumnId) ||
     !isColumnIdList(frontColumnIds, 1, 4) ||
-    !isColumnIdList(backColumnIds, 0, 4)
+    !isColumnIdList(backColumnIds, 0, 4) ||
+    !isColumnIdList(selectOptionColumnIds, 0, 4) ||
+    !isNullableNonEmptyString(writeAnswerColumnId)
   )
     throwValidation()
-  return { dataGroupId, groupingColumnId, frontColumnIds, backColumnIds }
+  return {
+    dataGroupId,
+    groupingColumnId,
+    frontColumnIds,
+    backColumnIds,
+    selectOptionColumnIds,
+    writeAnswerColumnId,
+  }
+}
+
+function isActivityConfiguration(record: Record<string, unknown>) {
+  return (
+    isColumnIdList(getOwn(record, 'selectOptionColumnIds'), 0, 4) &&
+    isNullableNonEmptyString(getOwn(record, 'writeAnswerColumnId'))
+  )
 }
 
 function requireRecord(data: unknown): Record<string, unknown> {

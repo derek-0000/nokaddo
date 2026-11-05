@@ -23,6 +23,8 @@ const validConnectionInput = {
   groupingColumnId: null,
   frontColumnIds: ['front-id'],
   backColumnIds: [],
+  selectOptionColumnIds: [],
+  writeAnswerColumnId: null,
   nokaddoDatasetId: null,
 }
 

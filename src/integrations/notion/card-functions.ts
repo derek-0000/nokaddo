@@ -1,7 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import { isFullPage, iterateAllDataSourceRows } from '@notionhq/client'
 import type { Client, PageObjectResponse } from '@notionhq/client'
-import { getStoredCardConfigurations } from './dataset-server'
+import {
+  ensureActivityConfigurationProperties,
+  ensureNokaddoReviewProperties,
+  getStoredCardConfigurations,
+  toActivityConfigurationProperties,
+} from './dataset-server'
 import { validateCardConfigurationAgainstDataset } from './dataset-semantic-validators'
 import {
   validateUpdateCardGroupInput,
@@ -11,6 +16,7 @@ import { validateDataGroupId } from './card-input-validators'
 import { withNotionClient } from './client-server'
 import {
   getCardGroupKeys,
+  getMissingActivityConfigurationProperties,
   toStoredCardConfigurationFromProperties,
   NOKADDO_DATASET_PROPERTIES,
   requireCardGroupConfigProperties,
@@ -169,7 +175,10 @@ export const updateCardGroup = createServerFn({ method: 'POST' })
   .validator(validateUpdateCardGroupInput)
   .handler(({ data }) =>
     withNotionClient(async (notion) => {
-      const properties = await retrieveCardGroupConfig(notion, data.dataGroupId)
+      const { page, properties } = await retrieveCardGroupConfigPage(
+        notion,
+        data.dataGroupId,
+      )
       const stored = toStoredCardConfigurationFromProperties(
         data.dataGroupId,
         properties,
@@ -201,6 +210,18 @@ export const updateCardGroup = createServerFn({ method: 'POST' })
         groupingColumnId: configuration.groupingColumnId,
         groupingColumnName: configuration.groupingColumnName,
       })
+      if (getMissingActivityConfigurationProperties(properties).length > 0) {
+        const appDatasetId = getParentDataSourceId(page)
+        if (!appDatasetId) throw new AppError('validation')
+        await ensureActivityConfigurationProperties(notion, appDatasetId)
+      }
+      if (
+        configuration.selectOptionColumnIds.length > 0 ||
+        configuration.writeAnswerColumnId !== null
+      ) {
+        // Decks created before activities need the result columns added.
+        await ensureNokaddoReviewProperties(notion, stored.dataSetId)
+      }
       let groupKeys = stored.groupKeys
       if (groupKeysUpdate === 'clear') {
         groupKeys = []
@@ -234,6 +255,7 @@ export const updateCardGroup = createServerFn({ method: 'POST' })
           [NOKADDO_DATASET_PROPERTIES.back]: {
             rich_text: toTextChunks(JSON.stringify(data.backColumnIds)),
           },
+          ...toActivityConfigurationProperties(data),
         },
       })
       return { groupingColumnId: configuration.groupingColumnId }
@@ -466,13 +488,28 @@ async function collectCardGroupStudyStats(
 }
 
 async function retrieveCardGroupConfig(notion: Client, dataGroupId: string) {
+  return (await retrieveCardGroupConfigPage(notion, dataGroupId)).properties
+}
+
+async function retrieveCardGroupConfigPage(
+  notion: Client,
+  dataGroupId: string,
+) {
   const page = await notion.pages.retrieve({ page_id: dataGroupId })
   const properties = requirePageProperties(
     page,
     'Card group configuration page could not be retrieved',
   )
 
-  return requireCardGroupConfigProperties(properties)
+  return { page, properties: requireCardGroupConfigProperties(properties) }
+}
+
+function getParentDataSourceId(
+  page: Awaited<ReturnType<Client['pages']['retrieve']>>,
+) {
+  return isFullPage(page) && page.parent.type === 'data_source_id'
+    ? page.parent.data_source_id
+    : null
 }
 
 function getGroupValues(property: PageProperty | undefined): string[] {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Loader, TriangleAlert } from 'lucide-react'
+import { Loader, TriangleAlert } from 'lucide-react'
+import StudyCard from './study-card'
 import { useStudy } from './use-study'
-import DatasetFlashcard from '../dataset-configuration/dataset-flashcard'
 import StudyProgressChart from '../deck/study-progress-chart'
 import { Button } from '#/components/ui/button'
 import { createStudyQuery } from '#/features/study/query'
@@ -10,7 +10,7 @@ import type { StudyCategorySelection } from '#/features/study/query'
 import type { CardGroups } from '#/integrations/notion/api'
 import type { CardStudyStats } from '#/integrations/notion/card-study'
 import { toPublicError } from '#/lib/errors'
-import type { CompactCard } from '#/features/study/types'
+import type { CompactCard, StudyQuery } from '#/features/study/types'
 
 type CardGroup = CardGroups[number]
 
@@ -67,7 +67,11 @@ export default function StudyScreen({
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <StudyContent study={study} total={displayedStats.total} />
+        <StudyContent
+          study={study}
+          query={query}
+          total={displayedStats.total}
+        />
       </main>
     </div>
   )
@@ -75,7 +79,15 @@ export default function StudyScreen({
 
 type StudyState = ReturnType<typeof useStudy>
 
-function StudyContent({ study, total }: { study: StudyState; total: number }) {
+function StudyContent({
+  study,
+  query,
+  total,
+}: {
+  study: StudyState
+  query: StudyQuery
+  total: number
+}) {
   if (study.isLoading) {
     return (
       <div
@@ -111,7 +123,12 @@ function StudyContent({ study, total }: { study: StudyState; total: number }) {
     )
   }
   return study.currentCard ? (
-    <ActiveStudyCard card={study.currentCard} study={study} total={total} />
+    <ActiveStudyCard
+      card={study.currentCard}
+      study={study}
+      query={query}
+      total={total}
+    />
   ) : (
     <div className="flex min-h-0 flex-1 flex-col" />
   )
@@ -120,10 +137,12 @@ function StudyContent({ study, total }: { study: StudyState; total: number }) {
 function ActiveStudyCard({
   card,
   study,
+  query,
   total,
 }: {
   card: CompactCard
   study: StudyState
+  query: StudyQuery
   total: number
 }) {
   const navigationButtonRef = useRef<HTMLButtonElement>(null)
@@ -136,69 +155,14 @@ function ActiveStudyCard({
 
   return (
     <>
-      <DatasetFlashcard
+      <StudyCard
         key={card.id}
-        topRightLabel={`${study.currentCardNumber}/${total}`}
-        renderControls={({ flip, reset, hasFlipped, isFlipping }) => (
-          <div className="flex w-full shrink-0 flex-col gap-3">
-            <Button
-              variant="soft"
-              className="w-full shrink-0"
-              onClick={study.toggleLearned}
-              disabled={study.isLearning}
-            >
-              {card.completed ? 'Mark unlearned' : 'Mark learned'}
-            </Button>
-            <ProgressError
-              error={study.progressError}
-              retry={study.retryProgress}
-              disabled={study.isSavingProgress}
-            />
-            <div className="flex shrink-0 gap-3">
-              <Button
-                variant="soft"
-                size="lg"
-                className="flex-1"
-                onClick={() => void study.previousCard()}
-                disabled={
-                  !study.hasPreviousCard ||
-                  study.isNavigating ||
-                  study.isPreparingPrevious
-                }
-              >
-                <ChevronLeft />
-                {study.isPreparingPrevious ? 'Finding previous…' : 'Previous'}
-              </Button>
-              <Button
-                size="lg"
-                className="flex-1"
-                ref={navigationButtonRef}
-                onClick={() => {
-                  if (!hasFlipped) flip()
-                  else if (study.hasNextCard) void study.nextCard()
-                  else void study.restart().then(reset)
-                }}
-                disabled={
-                  isFlipping ||
-                  study.isNavigating ||
-                  (hasFlipped && study.isPreparingNext)
-                }
-              >
-                {!hasFlipped
-                  ? 'Flip'
-                  : study.isPreparingNext
-                    ? 'Finding next…'
-                    : study.hasNextCard
-                      ? 'Next'
-                      : 'Back to start'}
-                <ChevronRight />
-              </Button>
-            </div>
-          </div>
-        )}
-      >
-        {(face) => <StudyCardFace values={card[face]} face={face} />}
-      </DatasetFlashcard>
+        card={card}
+        study={study}
+        query={query}
+        total={total}
+        navigationButtonRef={navigationButtonRef}
+      />
       {study.navigationError ? (
         <p
           className="mt-2 shrink-0 text-center text-xs text-destructive"
@@ -208,60 +172,6 @@ function ActiveStudyCard({
         </p>
       ) : null}
     </>
-  )
-}
-
-function ProgressError({
-  error,
-  retry,
-  disabled,
-}: {
-  error: unknown
-  retry: () => void
-  disabled: boolean
-}) {
-  if (!error) return null
-  return (
-    <div role="alert" className="mt-2 text-center text-xs text-destructive">
-      <p>We couldn't save your progress. {toPublicError(error).message}</p>
-      <Button variant="soft" size="sm" onClick={retry} disabled={disabled}>
-        Retry saving progress
-      </Button>
-    </div>
-  )
-}
-
-function StudyCardFace({
-  values,
-  face,
-}: {
-  values: string[]
-  face: 'front' | 'back'
-}) {
-  if (values.length === 0) {
-    return (
-      <p className="text-center text-sm text-muted-foreground">
-        No {face} fields configured.
-      </p>
-    )
-  }
-
-  const [title, ...details] = values
-
-  return (
-    <div className="flex w-full flex-col items-center gap-3 overflow-y-auto py-8 text-center">
-      <p className="text-lg font-semibold tracking-tight text-balance">
-        {title || '—'}
-      </p>
-      {details.map((value, index) => (
-        <p
-          key={index}
-          className="text-sm leading-relaxed text-foreground/70 text-balance"
-        >
-          {value || '—'}
-        </p>
-      ))}
-    </div>
   )
 }
 

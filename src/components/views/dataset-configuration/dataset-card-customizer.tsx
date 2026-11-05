@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, Plus, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
+import ColumnPickerDrawer from './column-picker-drawer'
 import DatasetFlashcard from './dataset-flashcard'
 import type {
   CardBindings,
@@ -7,14 +8,6 @@ import type {
   ColumnId,
   DatasetColumn,
 } from './dataset-connection-reducer'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from '#/components/ui/drawer'
 import { Button } from '#/components/ui/button'
 import SectionHeader from '#/components/ui/section-header'
 import { cn } from '#/lib/utils'
@@ -67,7 +60,6 @@ export function DatasetCardFields({
 
   const columnNames = new Map(columns.map((column) => [column.id, column.name]))
   const editingFields = editingFace ? bindings[editingFace] : []
-  const selectedColumnIds = new Set(editingFields)
 
   function renderFace(face: CardFace, emptyLayout: 'inline' | 'section') {
     const fields = bindings[face]
@@ -126,62 +118,16 @@ export function DatasetCardFields({
         ))
       )}
 
-      <Drawer
+      <ColumnPickerDrawer
         open={editingFace !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingFace(null)
-        }}
-        showSwipeHandle
-      >
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Choose fields</DrawerTitle>
-            <DrawerDescription>
-              Select up to {MAX_FIELDS} fields for the {editingFace ?? 'card'} (
-              {editingFields.length}/{MAX_FIELDS} selected)
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-            {columns.map((column) => {
-              const selected = selectedColumnIds.has(column.id)
-              const selectionLimitReached =
-                editingFields.length >= MAX_FIELDS && !selected
-
-              return (
-                <button
-                  key={column.id}
-                  type="button"
-                  aria-pressed={selected}
-                  disabled={selectionLimitReached}
-                  onClick={() => toggleColumn(column.id)}
-                  className={cn(
-                    'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent',
-                    selected && 'bg-primary/5 font-semibold',
-                  )}
-                >
-                  <span className="min-w-0 flex-1 truncate">{column.name}</span>
-                  {selected ? (
-                    <Check
-                      className="size-4 shrink-0 text-primary"
-                      strokeWidth={2.5}
-                    />
-                  ) : null}
-                </button>
-              )
-            })}
-          </div>
-          <DrawerFooter>
-            <Button
-              type="button"
-              onClick={() => setEditingFace(null)}
-              className="w-full"
-              size="lg"
-            >
-              Done
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+        onClose={() => setEditingFace(null)}
+        title="Choose fields"
+        description={`Select up to ${MAX_FIELDS} fields for the ${editingFace ?? 'card'} (${editingFields.length}/${MAX_FIELDS} selected)`}
+        columns={columns}
+        selectedColumnIds={editingFields}
+        maxSelected={MAX_FIELDS}
+        onToggleColumn={toggleColumn}
+      />
     </>
   )
 }

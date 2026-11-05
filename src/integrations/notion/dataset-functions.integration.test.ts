@@ -13,6 +13,8 @@ import { buildNotionClientDouble } from '../../../test/fixtures/notion-client'
 const datasetBoundary = vi.hoisted(() => ({
   createNokaddoDataset:
     vi.fn<typeof DatasetServerModule.createNokaddoDataset>(),
+  ensureActivityConfigurationProperties:
+    vi.fn<typeof DatasetServerModule.ensureActivityConfigurationProperties>(),
   ensureNokaddoReviewProperties:
     vi.fn<typeof DatasetServerModule.ensureNokaddoReviewProperties>(),
   getStoredCardConfigurations:
@@ -49,6 +51,8 @@ vi.mock('@tanstack/react-start', () => ({
 
 vi.mock('./dataset-server', () => ({
   createNokaddoDataset: datasetBoundary.createNokaddoDataset,
+  ensureActivityConfigurationProperties:
+    datasetBoundary.ensureActivityConfigurationProperties,
   ensureNokaddoReviewProperties: datasetBoundary.ensureNokaddoReviewProperties,
   getStoredCardConfigurations: datasetBoundary.getStoredCardConfigurations,
   insertCardConfiguration: datasetBoundary.insertCardConfiguration,
@@ -71,6 +75,8 @@ const validInput = {
   groupingColumnId: null,
   frontColumnIds: ['title-id'],
   backColumnIds: [],
+  selectOptionColumnIds: [],
+  writeAnswerColumnId: null,
   nokaddoDatasetId: null,
 }
 
@@ -91,6 +97,9 @@ beforeEach(() => {
   )
   notionBoundary.retrieve.mockResolvedValue(sourceDataset())
   datasetBoundary.createNokaddoDataset.mockResolvedValue('new-nokaddo-id')
+  datasetBoundary.ensureActivityConfigurationProperties.mockResolvedValue(
+    undefined,
+  )
   datasetBoundary.ensureNokaddoReviewProperties.mockResolvedValue(undefined)
   datasetBoundary.getStoredCardConfigurations.mockResolvedValue([])
   datasetBoundary.insertCardConfiguration.mockResolvedValue(
@@ -206,6 +215,9 @@ describe('dataset connection completion', () => {
       expect.anything(),
       'existing-nokaddo-id',
     )
+    expect(
+      datasetBoundary.ensureActivityConfigurationProperties,
+    ).toHaveBeenCalledWith(expect.anything(), 'existing-nokaddo-id')
     expect(notionBoundary.setCardGroups).not.toHaveBeenCalled()
     expect(datasetBoundary.insertCardConfiguration).toHaveBeenCalledWith(
       expect.anything(),
@@ -443,6 +455,8 @@ function storedConfiguration(overrides: { id?: string } = {}) {
     groupKeys: [],
     frontColumnIds: ['title-id'],
     backColumnIds: [],
+    selectOptionColumnIds: [],
+    writeAnswerColumnId: null,
     ...overrides,
   }
 }

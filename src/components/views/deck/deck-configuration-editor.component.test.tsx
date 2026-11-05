@@ -52,6 +52,8 @@ const cardGroup: CardGroups[number] = {
   groupKeys: [],
   frontColumnIds: ['front'],
   backColumnIds: [],
+  selectOptionColumnIds: [],
+  writeAnswerColumnId: null,
 }
 
 const dataset = {

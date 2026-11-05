@@ -141,7 +141,39 @@ describe('stored card configuration conversion', () => {
       groupKeys: ['One', 'Two'],
       frontColumnIds: ['front-id'],
       backColumnIds: ['back-id'],
+      selectOptionColumnIds: [],
+      writeAnswerColumnId: null,
     })
+  })
+
+  it('reads configured activities when the activity properties exist', () => {
+    const page = configurationPage({
+      ...configurationProperties(),
+      [NOKADDO_DATASET_PROPERTIES.selectOptions]: property(
+        'rich_text',
+        richText('["reading-id",', '"meaning-id"]'),
+      ),
+      [NOKADDO_DATASET_PROPERTIES.writeAnswer]: property(
+        'rich_text',
+        richText('reading-id'),
+      ),
+    })
+
+    expect(toStoredCardConfiguration(page)).toMatchObject({
+      selectOptionColumnIds: ['reading-id', 'meaning-id'],
+      writeAnswerColumnId: 'reading-id',
+    })
+  })
+
+  it('rejects activity properties with the wrong type', () => {
+    expect(() =>
+      requireCardGroupConfigProperties({
+        ...configurationProperties(),
+        [NOKADDO_DATASET_PROPERTIES.selectOptions]: property('checkbox', true),
+      }),
+    ).toThrow(
+      'Card group configuration property "nkdo_select" must be "rich_text", received "checkbox"',
+    )
   })
 
   it.each([

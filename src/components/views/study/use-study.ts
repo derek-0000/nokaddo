@@ -12,8 +12,14 @@ import {
 } from '#/integrations/indexDB/handlers'
 import type { StudyCardPosition } from '#/integrations/indexDB/handlers'
 import { notionKeys, notionQueries } from '#/integrations/notion/api'
-import { saveStudyProgress } from '#/integrations/notion/study-functions'
-import type { StudyProgressInput } from '#/integrations/notion/study-functions'
+import {
+  saveActivityResult,
+  saveStudyProgress,
+} from '#/integrations/notion/study-functions'
+import type {
+  ActivityResultInput,
+  StudyProgressInput,
+} from '#/integrations/notion/study-functions'
 import type { CardStudyStats } from '#/integrations/notion/card-study'
 import { notionStudySource } from '#/integrations/notion/study-source'
 import { createQueryFingerprint } from '#/features/study/query'
@@ -47,6 +53,10 @@ export function useStudy({
     currentCard: session.currentCard,
     positionKey: session.positionKey,
     stats,
+  })
+  const activityResults = useActivityResults({
+    deckId,
+    workspaceId: session.workspaceId,
   })
   const navigation = useStudyNavigation({
     skipLearned: progress.skipLearned,
@@ -96,6 +106,11 @@ export function useStudy({
     toggleLearned: progress.toggleLearned,
     retryProgress: progress.retryProgress,
     progressDelta: progress.progressDelta,
+    activityPool: session.page?.cards ?? [],
+    recordActivityResult: activityResults.record,
+    activityResultError: activityResults.error,
+    isSavingActivityResult: activityResults.isSaving,
+    retryActivityResult: activityResults.retry,
     nextCard: () => navigation.navigate('next'),
     previousCard: () => navigation.navigate('previous'),
     restart: () => navigation.navigate('start'),
@@ -595,6 +610,45 @@ function useStudyProgress({
       progressDelta.positionKey === positionKey
         ? progressDelta
         : { positionKey, visited: 0, completed: 0 },
+  }
+}
+
+function useActivityResults({
+  deckId,
+  workspaceId,
+}: {
+  deckId: string
+  workspaceId: string | undefined
+}) {
+  const queryClient = useQueryClient()
+  const result = useMutation({
+    mutationFn: (data: ActivityResultInput) => saveActivityResult({ data }),
+    // Shares the progress scope so writes to the same row stay ordered.
+    scope: { id: `study-progress:${workspaceId}` },
+    onSuccess: ({ pageId, activity, correct }) => {
+      queryClient.setQueriesData<CardWindow>(
+        { queryKey: ['study-card-window', workspaceId, deckId] },
+        (window) =>
+          window && {
+            ...window,
+            cards: window.cards.map((card) => {
+              const activityState = card[activity]
+              return card.id === pageId && activityState
+                ? { ...card, [activity]: { ...activityState, correct } }
+                : card
+            }),
+          },
+      )
+    },
+  })
+
+  return {
+    record: (data: ActivityResultInput) => result.mutate(data),
+    error: result.error,
+    isSaving: result.isPending,
+    retry: () => {
+      if (result.variables) result.mutate(result.variables)
+    },
   }
 }
 

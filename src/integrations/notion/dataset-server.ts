@@ -5,6 +5,7 @@ import type { Client, QueryDataSourceResponse } from '@notionhq/client'
 import { withNotionClient } from './client-server'
 import {
   NOKADDO_DATASET_PROPERTIES,
+  getMissingActivityConfigurationProperties,
   toStoredCardConfiguration,
 } from './card-configuration-validators'
 import {
@@ -100,6 +101,51 @@ function nokaddoDatasetSchema() {
     [NOKADDO_DATASET_PROPERTIES.groupKeys]: { rich_text: {} },
     [NOKADDO_DATASET_PROPERTIES.front]: { rich_text: {} },
     [NOKADDO_DATASET_PROPERTIES.back]: { rich_text: {} },
+    [NOKADDO_DATASET_PROPERTIES.selectOptions]: { rich_text: {} },
+    [NOKADDO_DATASET_PROPERTIES.writeAnswer]: { rich_text: {} },
+  }
+}
+
+/**
+ * Adds the activity configuration properties to App Datasets created before
+ * activities existed. Writing an unknown property would otherwise fail.
+ */
+export async function ensureActivityConfigurationProperties(
+  notion: Client,
+  nokaddoDatasetId: string,
+) {
+  const dataset = await notion.dataSources.retrieve({
+    data_source_id: nokaddoDatasetId,
+  })
+  const missing = getMissingActivityConfigurationProperties(dataset.properties)
+
+  if (missing.length === 0) return
+
+  await notion.dataSources.update({
+    data_source_id: nokaddoDatasetId,
+    properties: Object.fromEntries(
+      missing.map((propertyName) => [propertyName, { rich_text: {} }]),
+    ),
+  })
+}
+
+export function toActivityConfigurationProperties(
+  configuration: Pick<
+    CardConfigurationInput,
+    'selectOptionColumnIds' | 'writeAnswerColumnId'
+  >,
+) {
+  return {
+    [NOKADDO_DATASET_PROPERTIES.selectOptions]: {
+      rich_text: toTextChunks(
+        configuration.selectOptionColumnIds.length > 0
+          ? JSON.stringify(configuration.selectOptionColumnIds)
+          : '',
+      ),
+    },
+    [NOKADDO_DATASET_PROPERTIES.writeAnswer]: {
+      rich_text: toTextChunks(configuration.writeAnswerColumnId ?? ''),
+    },
   }
 }
 
@@ -203,6 +249,7 @@ export async function insertCardConfiguration(
       [NOKADDO_DATASET_PROPERTIES.back]: {
         rich_text: [toText(JSON.stringify(configuration.backColumnIds))],
       },
+      ...toActivityConfigurationProperties(configuration),
     },
   })
 

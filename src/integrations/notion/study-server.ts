@@ -6,12 +6,14 @@ import type {
   QueryDataSourceParameters,
 } from '@notionhq/client'
 import {
+  ACTIVITY_RESULT_PROPERTIES,
   NOKADDO_REVIEW_PROPERTIES,
   getReviewCheckbox,
 } from './review-property-validators'
 import { withNotionClient } from './client-server'
 import { normalizeNotionPropertyId, toNotionDatasetItem } from './helpers'
 import { elapsedMs, publishStudyTiming } from './study-timing'
+import type { StudyActivity } from '#/features/study/activities'
 import type { CompactCard, StudyQuery } from '#/features/study/types'
 
 export async function queryStudyWindow(
@@ -100,6 +102,12 @@ function selectedPropertyIds(query: StudyQuery) {
     NOKADDO_REVIEW_PROPERTIES.visited,
     NOKADDO_REVIEW_PROPERTIES.completed,
     ...(query.groupPropertyId ? [query.groupPropertyId] : []),
+    ...(query.selectPropertyIds
+      ? [...query.selectPropertyIds, ACTIVITY_RESULT_PROPERTIES.select]
+      : []),
+    ...(query.writePropertyId
+      ? [query.writePropertyId, ACTIVITY_RESULT_PROPERTIES.write]
+      : []),
   ])
 }
 
@@ -129,6 +137,26 @@ function toCompactStudyCard(
     ),
     groupKey: query.groupPropertyId
       ? getPageValue(page, query.groupPropertyId)
+      : undefined,
+    select: query.selectPropertyIds
+      ? {
+          values: query.selectPropertyIds.map((propertyId) =>
+            getPageValue(page, propertyId),
+          ),
+          correct: getReviewCheckbox(
+            page.properties,
+            ACTIVITY_RESULT_PROPERTIES.select,
+          ),
+        }
+      : undefined,
+    write: query.writePropertyId
+      ? {
+          value: getPageValue(page, query.writePropertyId),
+          correct: getReviewCheckbox(
+            page.properties,
+            ACTIVITY_RESULT_PROPERTIES.write,
+          ),
+        }
       : undefined,
   }
 }
@@ -179,5 +207,26 @@ export async function updateStudyProgress({
             },
     })
     return { pageId, completed: action === 'learn' }
+  })
+}
+
+export async function updateActivityResult({
+  pageId,
+  activity,
+  correct,
+}: {
+  pageId: string
+  activity: StudyActivity
+  correct: boolean
+}) {
+  return withNotionClient(async (notion) => {
+    // The column mirrors the latest attempt, so a wrong answer clears it.
+    await notion.pages.update({
+      page_id: pageId,
+      properties: {
+        [ACTIVITY_RESULT_PROPERTIES[activity]]: { checkbox: correct },
+      },
+    })
+    return { pageId, activity, correct }
   })
 }

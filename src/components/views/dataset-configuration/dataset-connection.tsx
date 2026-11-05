@@ -8,6 +8,8 @@ import DatasetConnectionPreview from './dataset-connection-preview'
 import {
   createDatasetConnectionState,
   datasetConnectionReducer,
+  hasValidActivitySettings,
+  toActivityConfiguration,
 } from './dataset-connection-reducer'
 import DatasetConnectionSetup from './dataset-connection-setup'
 import { Button } from '#/components/ui/button'
@@ -18,6 +20,7 @@ import {
 } from '#/integrations/kv/api'
 import { notionKeys, notionMutations } from '#/integrations/notion/api'
 import type { NotionDataset } from '#/integrations/notion/api'
+import { isNokaddoReviewPropertyName } from '#/integrations/notion/review-property-validators'
 import { isCategoryPropertyType } from '#/integrations/notion/types'
 
 type DatasetConnectionProps = {
@@ -41,6 +44,9 @@ export default function DatasetConnection({
   }))
   const groupingColumns = columns.filter(({ type }) =>
     isCategoryPropertyType(type),
+  )
+  const activityColumns = columns.filter(
+    ({ name }) => !isNokaddoReviewPropertyName(name),
   )
   const [stepIndex, setStepIndex] = useState(0)
   const [connection, dispatch] = useReducer(
@@ -77,11 +83,19 @@ export default function DatasetConnection({
       content: (
         <DatasetConnectionSetup
           columns={groupingColumns}
+          activityColumns={activityColumns}
           mode={connection.mode}
           groupingColumnId={connection.groupingColumnId}
+          activities={connection.activities}
           onModeChange={(mode) => dispatch({ type: 'mode-changed', mode })}
           onGroupingColumnChange={(columnId) =>
             dispatch({ type: 'grouping-column-changed', columnId })
+          }
+          onToggleActivity={(activity, enabled) =>
+            dispatch({ type: 'activity-toggled', activity, enabled })
+          }
+          onActivityColumnsChange={(activity, columnIds) =>
+            dispatch({ type: 'activity-columns-changed', activity, columnIds })
           }
         />
       ),
@@ -114,6 +128,7 @@ export default function DatasetConnection({
             connection.mode === 'grouped' ? connection.groupingColumnId : null
           }
           bindings={connection.bindings}
+          activities={connection.activities}
         />
       ),
     },
@@ -123,6 +138,7 @@ export default function DatasetConnection({
   const isLastStep = stepIndex === steps.length - 1
   const validColumnIds = new Set(columns.map(({ id }) => id))
   const validGroupingColumnIds = new Set(groupingColumns.map(({ id }) => id))
+  const validActivityColumnIds = new Set(activityColumns.map(({ id }) => id))
   const hasValidFace = (face: 'front' | 'back', minimum: number) => {
     const fields = connection.bindings[face]
 
@@ -138,7 +154,8 @@ export default function DatasetConnection({
     hasValidFace('back', 0) &&
     (connection.mode === 'single' ||
       (connection.groupingColumnId !== null &&
-        validGroupingColumnIds.has(connection.groupingColumnId)))
+        validGroupingColumnIds.has(connection.groupingColumnId))) &&
+    hasValidActivitySettings(connection.activities, validActivityColumnIds)
   const createdAppDatasetId = completeConnection.data?.nokaddoDatasetId ?? null
   const isSaving = completeConnection.isPending || persistConnection.isPending
   const isSaved = persistConnection.isSuccess
@@ -171,6 +188,7 @@ export default function DatasetConnection({
             connection.mode === 'grouped' ? connection.groupingColumnId : null,
           frontColumnIds: connection.bindings.front,
           backColumnIds: connection.bindings.back,
+          ...toActivityConfiguration(connection.activities),
           nokaddoDatasetId: appDatasetId,
         },
       },
